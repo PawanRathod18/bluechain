@@ -1,0 +1,11 @@
+**/node_modules
+**/__pycache__
+**/.venv
+**/dist
+**/artifacts
+**/cache
+**/*.db
+**/storage
+.git
+docs
+*.zip

@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bluechain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bluechain}
+      POSTGRES_DB: ${POSTGRES_DB:-bluechain}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bluechain}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-bluechain}:${POSTGRES_PASSWORD:-bluechain}@db:5432/${POSTGRES_DB:-bluechain}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      STORAGE_DIR: /data/storage
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      BLUECHAIN_SEED: ${BLUECHAIN_SEED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      CONTRACT_ADDRESS: ${CONTRACT_ADDRESS:-}
+      CHAIN_ID: ${CHAIN_ID:-31337}
+      RPC_URL: ${RPC_URL:-http://host.docker.internal:8545}
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ""
+        VITE_CONTRACT_ADDRESS: ${CONTRACT_ADDRESS:-0x5FbDB2315678afecb367f032d93F642f64180aa3}
+        VITE_CHAIN_ID: ${CHAIN_ID:-31337}
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  storage:

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlueChain static client — proof of concept</title>
+<style>
+  :root{--bg:#070e17;--surface:#0e1b28;--surface2:#122232;--border:rgba(255,255,255,.09);
+        --text:#e8f0f8;--dim:#7f95ac;--green:#22c55e;--green-b:#4ade80;--amber:#f5a524;--red:#ef4444}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Segoe UI",system-ui,sans-serif;padding:28px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:22px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  label{display:block;font-size:11px;color:var(--dim);margin-bottom:5px}
+  input,select,button{font:inherit}
+  input,select{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+                border-radius:8px;padding:9px 11px;min-width:190px}
+  button{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+         border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:600}
+  button.primary{background:linear-gradient(96deg,#2f6bff,#22c55e);border:none;color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:14px}
+  .stat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .stat .k{font-size:11px;color:var(--dim)}
+  .stat .v{font-family:ui-monospace,monospace;font-size:20px;font-weight:700;color:var(--green-b);margin-top:3px}
+  .stat .v small{font-size:11px;color:var(--dim);font-weight:400;margin-left:4px}
+  pre{background:#08131d;border:1px solid var(--border);border-radius:8px;padding:12px;
+      font-size:11px;color:#9fb3c8;overflow:auto;max-height:240px}
+  .msg{padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:12px}
+  .msg.ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.35);color:var(--green-b)}
+  .msg.err{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#ffb4b4}
+  .msg.info{background:rgba(47,107,255,.1);border:1px solid rgba(47,107,255,.3);color:#a9c8ff}
+  img.preview{width:100%;border-radius:10px;border:1px solid var(--border);margin-top:12px;max-height:380px;object-fit:contain;background:#06121a}
+  .hint{font-size:11.5px;color:var(--dim);margin-top:10px}
+  code{font-family:ui-monospace,monospace;color:var(--green-b)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BlueChain — static client proof of concept</h1>
+  <p class="sub">
+    A plain HTML page with no build step, calling the real Python API across origins.
+    This is the pattern to copy into your own pages.
+  </p>
+
+  <div id="messages"></div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="apiUrl">API base URL</label>
+        <input id="apiUrl" value="http://127.0.0.1:8000">
+      </div>
+      <div>
+        <label for="email">Email</label>
+        <input id="email" value="pawan@bluechain.dev">
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input id="password" type="password" value="BlueChain@123">
+      </div>
+      <button class="primary" id="btnLogin">Connect</button>
+    </div>
+    <p class="hint">Served from <code id="origin"></code> — different origin from the API, which is the point.</p>
+  </div>
+
+  <div class="card" id="panel" style="display:none">
+    <div class="row">
+      <div>
+        <label for="project">Project</label>
+        <select id="project"></select>
+      </div>
+      <button id="btnDemo">Run demo analysis</button>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <div><label>Sentinel-2 B4 (red) GeoTIFF</label><input type="file" id="fRed" accept=".tif,.tiff"></div>
+      <div><label>Sentinel-2 B8 (NIR) GeoTIFF</label><input type="file" id="fNir" accept=".tif,.tiff"></div>
+      <div><label>GEDI rh100 (optional)</label><input type="file" id="fGedi" accept=".tif,.tiff"></div>
+      <button class="primary" id="btnRun">Run carbon analysis</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+</div>
+
+<script src="bluechain-api.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id)
+  let bc = null
+  let currentProject = null
+
+  $('origin').textContent = location.origin
+
+  function message(kind, text) {
+    const el = document.createElement('div')
+    el.className = 'msg ' + kind
+    el.textContent = text
+    $('messages').innerHTML = ''
+    $('messages').appendChild(el)
+  }
+
+  $('btnLogin').addEventListener('click', async () => {
+    $('btnLogin').disabled = true
+    try {
+      bc = BlueChain.createClient($('apiUrl').value)
+      const health = await bc.health()
+      message('info', 'Connected to ' + health.service + ' v' + health.version)
+      const user = await bc.login($('email').value, $('password').value)
+      message('ok', 'Signed in as ' + user.full_name + ' (' + user.role + ')')
+      await loadProjects()
+      $('panel').style.display = 'block'
+    } catch (e) {
+      message('err', e.message)
+    } finally {
+      $('btnLogin').disabled = false
+    }
+  })
+
+  async function loadProjects() {
+    const projects = await bc.listProjects()
+    const sel = $('project')
+    sel.innerHTML = ''
+    projects.forEach((p) => {
+      const o = document.createElement('option')
+      o.value = p.id
+      o.textContent = p.name + ' — ' + p.status + ' — ' + (p.area_ha ?? 0).toFixed(2) + ' ha'
+      sel.appendChild(o)
+    })
+    currentProject = projects[0]
+    sel.onchange = () => { currentProject = projects.find((p) => String(p.id) === sel.value) }
+  }
+
+  function renderAnalysis(a) {
+    const s = a.stats
+    $('results').innerHTML = `
+      <div class="stats">
+        <div class="stat"><div class="k">Total modelled AGC</div>
+          <div class="v">${bc.formatNumber(s.total_agc_tc)}<small>t C</small></div></div>
+        <div class="stat"><div class="k">Mapped mangrove area</div>
+          <div class="v">${bc.formatNumber(s.mapped_area_ha)}<small>ha</small></div></div>
+        <div class="stat"><div class="k">Mean AGC density</div>
+          <div class="v">${bc.formatNumber(s.mean_agc_density, 4)}<small>t C/ha</small></div></div>
+        <div class="stat"><div class="k">Mangrove cells</div>
+          <div class="v">${bc.formatNumber(s.cells_mangrove, 0)}</div></div>
+      </div>
+      <img class="preview" src="${bc.previewUrl(currentProject.id, a.id, 'agc')}" alt="AGC density">
+      <p class="hint">Every number above came from the API, not from this page.
+        GEDI observed ${a.gedi_support.observed_cells} cells, gap-filled ${a.gedi_support.gapfilled_cells}.</p>
+      <pre>${JSON.stringify(a.stats, null, 2)}</pre>`
+  }
+
+  $('btnDemo').addEventListener('click', async () => {
+    $('btnDemo').disabled = true
+    try {
+      message('info', 'Running the pipeline…')
+      const a = await bc.runDemoAnalysis($('project').value)
+      renderAnalysis(a)
+      message('ok', 'Analysis complete — real output from the Python pipeline')
+    } catch (e) {
+      message('err', e.message)
+    } finally {
+      $('btnDemo').disabled = false
+    }
+  })
+
+  $('btnRun').addEventListener('click', async () => {
+    const red = $('fRed').files[0]
+    const nir = $('fNir').files[0]
+    if (!red || !nir) { message('err', 'Choose both the red and NIR GeoTIFFs'); return }
+    $('btnRun').disabled = true
+    try {
+      message('info', 'Uploading rasters and running the pipeline…')
+      const a = await bc.runAnalysis($('project').value, {
+        red: red, nir: nir, gedi: $('fGedi').files[0]
+      }, { ndvi_threshold: 0.4, agb_coefficient: 10.5, carbon_fraction: 0.47 })
+      renderAnalysis(a)
+      message('ok', 'Analysis complete — computed from your rasters')
+    } catch (e) {
+      message('err', e.message)
+    } finally {
+      $('btnRun').disabled = false
+    }
+  })
+</script>
+</body>
+</html>

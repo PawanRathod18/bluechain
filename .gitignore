@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+*.db
+*.sqlite3
+
+# node
+node_modules/
+dist/
+.vite/
+
+# hardhat
+artifacts/
+cache/
+typechain-types/
+deployments/
+
+# storage & env
+storage/
+.env
+.env.local
+*.log
+.DS_Store

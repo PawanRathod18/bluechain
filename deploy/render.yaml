@@ -1,0 +1,23 @@
+# Render blueprint for the single-service image.
+#   Dashboard -> New -> Blueprint -> point at this repo.
+# Free plan notes: the service sleeps after ~15 min idle and has NO persistent disk,
+# so the database and uploaded rasters reset on every restart or deploy.
+services:
+  - type: web
+    name: bluechain
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: BLUECHAIN_SEED
+        value: "true"
+      - key: CONTRACT_ADDRESS
+        value: ""
+      - key: CHAIN_ID
+        value: "31337"
